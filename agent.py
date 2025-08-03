@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Set, Dict, Any
 from message import Message, MessageBroker
+from logger import setup_logger
+import logging
 
 
 class Agent(ABC):
@@ -11,6 +13,7 @@ class Agent(ABC):
         self.subscriptions: Set[str] = set()
         self.message_broker: MessageBroker = None
         self.kernel = None
+        self.logger = setup_logger(f"Agent.{agent_id}")
     
     def set_message_broker(self, broker: MessageBroker):
         """Set the message broker for this agent"""
@@ -30,6 +33,7 @@ class Agent(ABC):
     def send_message(self, topic: str, payload: dict, timestamp: int = None):
         """Send message to a specific topic"""
         if self.message_broker is None:
+            self.logger.error("Message broker not set for agent")
             raise RuntimeError("Message broker not set for agent")
         
         # Use current kernel time if timestamp not provided
@@ -38,6 +42,8 @@ class Agent(ABC):
                 timestamp = self.kernel.get_current_time()
             else:
                 timestamp = 0
+        
+        self.logger.debug(f"Sending message to topic {topic} with payload {payload}")
         
         message = Message(
             timestamp=timestamp,
@@ -50,16 +56,20 @@ class Agent(ABC):
     def subscribe(self, topic_pattern: str):
         """Subscribe to messages from a topic or pattern"""
         if self.message_broker is None:
+            self.logger.error("Message broker not set for agent")
             raise RuntimeError("Message broker not set for agent")
         
+        self.logger.debug(f"Subscribing to topic pattern: {topic_pattern}")
         self.subscriptions.add(topic_pattern)
         self.message_broker.subscribe(self.agent_id, topic_pattern)
     
     def unsubscribe(self, topic_pattern: str):
         """Unsubscribe from messages from a topic or pattern"""
         if self.message_broker is None:
+            self.logger.error("Message broker not set for agent")
             raise RuntimeError("Message broker not set for agent")
         
+        self.logger.debug(f"Unsubscribing from topic pattern: {topic_pattern}")
         self.subscriptions.discard(topic_pattern)
         self.message_broker.unsubscribe(self.agent_id, topic_pattern)
 
@@ -93,6 +103,7 @@ class ActiveAgent(Agent):
     
     def wakeup(self, current_time: int):
         """Called by kernel at each scheduled time step"""
+        self.logger.debug(f"Waking up at time {current_time}")
         # Remove this wakeup time from scheduled wakeups
         self.scheduled_wakeups.discard(current_time)
         pass

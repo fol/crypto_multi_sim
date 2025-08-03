@@ -2,6 +2,7 @@ from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass, field
 from sortedcontainers import SortedDict
 import heapq
+from logger import setup_logger
 
 
 @dataclass
@@ -40,9 +41,12 @@ class OrderBook:
         self.best_bid = 0.0
         self.best_ask = float('inf')
         self.order_map: Dict[str, Order] = {}  # order_id -> Order
+        self.logger = setup_logger(f"OrderBook.{symbol}")
     
     def add_order(self, order: Order) -> List[Tuple[str, float, int, str, str]]:
         """Add an order to the book and return any trades generated"""
+        self.logger.debug(f"Adding order {order.order_id}: {order.side} {order.quantity} @ {order.price}")
+        
         # Store order for later lookup
         self.order_map[order.order_id] = order
         
@@ -64,14 +68,19 @@ class OrderBook:
         self._update_best_prices()
         
         # Try to match the order
-        return self._match_order(order)
+        trades = self._match_order(order)
+        if trades:
+            self.logger.debug(f"Generated {len(trades)} trades")
+        return trades
     
     def cancel_order(self, order_id: str) -> bool:
         """Cancel an order by ID"""
         if order_id not in self.order_map:
+            self.logger.debug(f"Order {order_id} not found for cancellation")
             return False
         
         order = self.order_map[order_id]
+        self.logger.debug(f"Cancelling order {order_id}: {order.side} {order.quantity} @ {order.price}")
         
         # Remove from price level
         if order.side == "BUY":

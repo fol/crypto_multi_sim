@@ -1,6 +1,7 @@
 from typing import Dict, List, Tuple
 from agent import ActiveAgent
 from message import Message
+from logger import setup_logger
 import random
 
 
@@ -16,6 +17,7 @@ class MarketMakerAgent(ActiveAgent):
         self.max_inventory = 100
         self.order_size = 10
         self.active_orders = {}  # order_id -> side
+        self.logger = setup_logger(f"MarketMakerAgent.{agent_id}")
     
     def initialize(self):
         """Initialize subscriptions and first orders"""
@@ -57,7 +59,7 @@ class MarketMakerAgent(ActiveAgent):
     def wakeup(self, current_time: int):
         """Place or adjust quotes"""
         super().wakeup(current_time)
-        print(f"[{current_time}ms] MarketMakerAgent {self.agent_id} waking up")
+        self.logger.info(f"MarketMakerAgent {self.agent_id} waking up at {current_time}ms")
         
         # Cancel existing orders
         self._cancel_existing_orders()
@@ -84,7 +86,7 @@ class MarketMakerAgent(ActiveAgent):
         bid_price = round(self.fair_value * (1 - self.spread/2), 2)
         ask_price = round(self.fair_value * (1 + self.spread/2), 2)
         
-        print(f"  Placing quotes: BID {bid_price} ASK {ask_price}")
+        self.logger.info(f"Placing quotes: BID {bid_price} ASK {ask_price}")
         
         # Place bid
         bid_id = f"{self.agent_id}_BID_{int(round(bid_price * 100))}"
@@ -121,6 +123,7 @@ class MomentumTraderAgent(ActiveAgent):
         self.max_history = 10
         self.position = 0
         self.max_position = 100
+        self.logger = setup_logger(f"MomentumTraderAgent.{agent_id}")
     
     def initialize(self):
         """Initialize subscriptions"""
@@ -200,6 +203,7 @@ class MeanReversionTraderAgent(ActiveAgent):
         self.position = 0
         self.max_position = 100
         self.fair_value = 100.0  # Initial fair value
+        self.logger = setup_logger(f"MeanReversionTraderAgent.{agent_id}")
     
     def initialize(self):
         """Initialize subscriptions"""

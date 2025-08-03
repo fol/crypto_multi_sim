@@ -2,6 +2,7 @@ from typing import Dict, List, Tuple
 from agent import ActiveAgent
 from message import Message
 from order_book import OrderBook, Order, Trade, MarketData
+from logger import setup_logger
 
 
 class ExchangeAgent(ActiveAgent):
@@ -13,6 +14,7 @@ class ExchangeAgent(ActiveAgent):
         self.market_data: Dict[str, MarketData] = {}
         self.trade_history: List[Trade] = []
         self.market_data_update_interval = 100  # milliseconds
+        self.logger = setup_logger(f"ExchangeAgent.{agent_id}")
     
     def initialize_symbol(self, symbol: str):
         """Initialize an order book for a symbol"""
@@ -45,9 +47,10 @@ class ExchangeAgent(ActiveAgent):
         payload = message.payload
         symbol = payload.get("symbol")
         
-        print(f"[{message.timestamp}ms] Exchange received order: {payload}")
+        self.logger.info(f"[{message.timestamp}ms] Exchange received order: {payload}")
         
         if symbol not in self.order_books:
+            self.logger.debug(f"Initializing symbol {symbol}")
             self.initialize_symbol(symbol)
         
         # Create order object
@@ -64,7 +67,7 @@ class ExchangeAgent(ActiveAgent):
         # Add order to book and get any trades
         trades = self.order_books[symbol].add_order(order)
         
-        print(f"  Order added, {len(trades)} trades generated")
+        self.logger.info(f"Order added, {len(trades)} trades generated")
         
         # Process trades
         for trade_id, price, quantity, buyer_id, seller_id in trades:
