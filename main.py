@@ -1,29 +1,58 @@
-import asyncio
-from exchange import Exchange
-from agents import SimpleTraderAgent
+from kernel import Kernel
+from exchange import ExchangeAgent
+from trading_agents import MarketMakerAgent, MomentumTraderAgent, MeanReversionTraderAgent
+import random
 
 
-# Example usage
-async def main():
-    # Create exchange
-    exchange = Exchange()
+def main():
+    """Main function to run the market simulation"""
+    # Create kernel
+    kernel = Kernel()
     
-    # Create agents
-    trader1 = SimpleTraderAgent("trader1", exchange, 50000.0)  # BTC price
-    trader2 = SimpleTraderAgent("trader2", exchange, 50000.0)
+    # Create exchange agent
+    exchange = ExchangeAgent("EXCHANGE")
+    kernel.register_agent(exchange)
     
-    # Schedule initial wakeup events for agents
-    exchange.add_event(trader1.schedule_wakeup(0))
-    exchange.add_event(trader2.schedule_wakeup(500))  # 0.5 seconds later
+    # Initialize a symbol
+    exchange.initialize_symbol("AAPL")
     
-    # Process events
-    await exchange.process_events()
+    # Create trading agents
+    market_maker = MarketMakerAgent("MM_1", "AAPL", 100.0, 0.02)
+    momentum_trader = MomentumTraderAgent("MOM_1", "AAPL")
+    mean_reversion_trader = MeanReversionTraderAgent("MR_1", "AAPL")
     
-    print("Simulation completed")
-    print(f"Final time: {exchange.current_time} ms")
-    print(f"Best bid: {exchange.order_book.get_best_bid()}")
-    print(f"Best ask: {exchange.order_book.get_best_ask()}")
-    print(f"Trades executed: {len(exchange.order_book.trades)}")
+    # Register agents
+    kernel.register_agent(market_maker)
+    kernel.register_agent(momentum_trader)
+    kernel.register_agent(mean_reversion_trader)
+    
+    # Initialize agents
+    market_maker.initialize()
+    momentum_trader.initialize()
+    mean_reversion_trader.initialize()
+    
+    # Schedule some initial events
+    kernel.schedule_agent_wakeup("EXCHANGE", 100)
+    kernel.schedule_agent_wakeup("MM_1", 1000)
+    kernel.schedule_agent_wakeup("MOM_1", 2000)
+    kernel.schedule_agent_wakeup("MR_1", 3000)
+    
+    # Run simulation for 10 seconds (10000 milliseconds)
+    print("Starting market simulation...")
+    kernel.run(10000)
+    print("Simulation completed.")
+    
+    # Print some statistics
+    print(f"Final time: {kernel.get_current_time()} ms")
+    print(f"Total trades: {len(exchange.trade_history)}")
+    print(f"Order book size: {len(exchange.order_books['AAPL'].bids) + len(exchange.order_books['AAPL'].asks)} levels")
+    
+    if exchange.trade_history:
+        last_trades = exchange.trade_history[-5:]  # Last 5 trades
+        print("Last 5 trades:")
+        for trade in last_trades:
+            print(f"  {trade.trade_id}: {trade.quantity} @ ${trade.price}")
+
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
