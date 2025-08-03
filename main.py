@@ -3,6 +3,7 @@ from exchange import ExchangeAgent
 from trading_agents import MarketMakerAgent, MomentumTraderAgent, MeanReversionTraderAgent
 from logger import setup_logger
 import random
+import logging
 
 
 def main():

@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 from typing import Optional
 
@@ -28,20 +29,30 @@ class ColoredFormatter(logging.Formatter):
         
         return super().format(record)
 
-def setup_logger(name: str, level: int = logging.INFO) -> logging.Logger:
+def setup_logger(name: str, level: Optional[int] = None) -> logging.Logger:
     """
     Set up a logger with the specified name and level.
     
     Args:
         name: Name of the logger
-        level: Logging level (default: INFO)
+        level: Logging level (default: None, which means use global level from LOG_LEVEL env var or INFO)
         
     Returns:
         Configured logger instance
     """
     # Create logger
     logger = logging.getLogger(name)
-    logger.setLevel(level)
+    
+    # Determine log level
+    if level is not None:
+        # Use explicitly provided level
+        logger_level = level
+    else:
+        # Get level from environment variable or default to INFO
+        log_level_str = os.environ.get('LOG_LEVEL', 'INFO').upper()
+        logger_level = getattr(logging, log_level_str, logging.INFO)
+    
+    logger.setLevel(logger_level)
     
     # Avoid adding handlers multiple times
     if logger.handlers:
@@ -49,7 +60,7 @@ def setup_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     
     # Create console handler
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(level)
+    console_handler.setLevel(logger_level)
     
     # Create formatter
     formatter = ColoredFormatter(
