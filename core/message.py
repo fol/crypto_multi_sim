@@ -3,7 +3,7 @@ from typing import Dict, List, Set, Any, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 import uuid
-from logger import setup_logger
+from utils.logger import setup_logger
 
 
 @dataclass

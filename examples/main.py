@@ -1,7 +1,7 @@
-from kernel import Kernel
-from exchange import ExchangeAgent
-from trading_agents import MarketMakerAgent, MomentumTraderAgent, MeanReversionTraderAgent
-from logger import setup_logger
+from core.kernel import Kernel
+from core.exchange import ExchangeAgent
+from agents.trading_agents import MarketMakerAgent, MomentumTraderAgent, MeanReversionTraderAgent, LiquidityProviderAgent
+from utils.logger import setup_logger
 import random
 import logging
 
@@ -25,22 +25,26 @@ def main():
     market_maker = MarketMakerAgent("MM_1", "AAPL", 100.0, 0.02)
     momentum_trader = MomentumTraderAgent("MOM_1", "AAPL")
     mean_reversion_trader = MeanReversionTraderAgent("MR_1", "AAPL")
+    liquidity_provider = LiquidityProviderAgent("LP_1", "AAPL")
     
     # Register agents
     kernel.register_agent(market_maker)
     kernel.register_agent(momentum_trader)
     kernel.register_agent(mean_reversion_trader)
+    kernel.register_agent(liquidity_provider)
     
     # Initialize agents
     market_maker.initialize()
     momentum_trader.initialize()
     mean_reversion_trader.initialize()
+    liquidity_provider.initialize()
     
     # Schedule some initial events
     kernel.schedule_agent_wakeup("EXCHANGE", 100)
     kernel.schedule_agent_wakeup("MM_1", 1000)
     kernel.schedule_agent_wakeup("MOM_1", 2000)
     kernel.schedule_agent_wakeup("MR_1", 3000)
+    kernel.schedule_agent_wakeup("LP_1", 500)
     
     # Run simulation for 10 seconds (10000 milliseconds)
     logger.info("Starting market simulation...")

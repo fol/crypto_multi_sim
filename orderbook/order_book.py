@@ -2,7 +2,7 @@ from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass, field
 from sortedcontainers import SortedDict
 import heapq
-from logger import setup_logger
+from utils.logger import setup_logger
 
 
 @dataclass

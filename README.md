@@ -39,20 +39,44 @@ Efficient limit order book implementation with price-time priority matching algo
 Run the simulation with:
 
 ```bash
-python main.py
+python examples/main.py
 ```
 
 This will run a sample simulation with AAPL symbol and multiple trading agents for 10 seconds.
 
+To run the order book depth example:
+
+```bash
+python examples/order_book_depth_example.py
+```
+
+This will run a simulation demonstrating order book depth checking functionality.
+
 ## Code Structure
 
-- `agent.py`: Base agent classes and communication interfaces
-- `kernel.py`: Event scheduler and simulation coordinator
-- `message.py`: Publish/subscribe messaging system
-- `order_book.py`: Limit order book implementation
-- `exchange.py`: Exchange agent with order matching
-- `trading_agents.py`: Various trading strategy implementations
-- `main.py`: Sample simulation setup and execution
+### Core Components
+- `core/agent.py`: Base agent classes and communication interfaces
+- `core/kernel.py`: Event scheduler and simulation coordinator
+- `core/message.py`: Publish/subscribe messaging system
+- `core/exchange.py`: Exchange agent with order matching
+
+### Order Book
+- `orderbook/order_book.py`: Limit order book implementation
+- `orderbook/order_book_utils.py`: Utility functions for order book operations
+
+### Agents
+- `agents/trading_agents.py`: Various trading strategy implementations
+
+### Examples
+- `examples/main.py`: Sample simulation setup and execution
+- `examples/order_book_depth_example.py`: Example demonstrating order book depth checking
+
+### Utilities
+- `utils/logger.py`: Logging utilities
+
+### Tests
+- `tests/test_liquidity_provider.py`: Unit tests for liquidity provider agent
+- `tests/test_order_book.py`: Unit tests for order book functionality
 
 ## Performance Optimizations
 
@@ -66,11 +90,31 @@ This will run a sample simulation with AAPL symbol and multiple trading agents f
 
 To create your own trading agents:
 
-1. Extend the `ActiveAgent` or `PassiveAgent` base class
+1. Extend the `ActiveAgent` or `PassiveAgent` base class from `core.agent`
 2. Implement the `receive_message` method to process market data
 3. Implement the `wakeup` method for scheduled actions
 4. Use `send_message` to submit orders or other messages
 5. Use `subscribe` to receive relevant market data
+
+Example:
+```python
+from core.agent import ActiveAgent
+from core.message import Message
+
+class MyCustomAgent(ActiveAgent):
+    def __init__(self, agent_id: str, symbol: str):
+        super().__init__(agent_id)
+        self.symbol = symbol
+    
+    def receive_message(self, message: Message):
+        # Process incoming messages
+        pass
+    
+    def wakeup(self, current_time: int):
+        super().wakeup(current_time)
+        # Perform scheduled actions
+        pass
+```
 
 ## License
 
