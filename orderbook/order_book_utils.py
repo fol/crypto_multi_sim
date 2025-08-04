@@ -1,7 +1,7 @@
 from typing import Dict, List, Tuple, Optional
-from agent import Agent
-from message import Message
-from logger import setup_logger
+from ..core.agent import Agent
+from ..core.message import Message
+from ..utils.logger import setup_logger
 import logging
 import time
 

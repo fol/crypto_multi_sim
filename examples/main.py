@@ -1,7 +1,7 @@
-from kernel import Kernel
-from exchange import ExchangeAgent
-from trading_agents import MarketMakerAgent, MomentumTraderAgent, MeanReversionTraderAgent, LiquidityProviderAgent
-from logger import setup_logger
+from ..core.kernel import Kernel
+from ..core.exchange import ExchangeAgent
+from ..agents.trading_agents import MarketMakerAgent, MomentumTraderAgent, MeanReversionTraderAgent, LiquidityProviderAgent
+from ..utils.logger import setup_logger
 import random
 import logging
 

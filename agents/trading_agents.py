@@ -1,7 +1,7 @@
 from typing import Dict, List, Tuple
-from agent import ActiveAgent
-from message import Message
-from logger import setup_logger
+from ..core.agent import ActiveAgent
+from ..core.message import Message
+from ..utils.logger import setup_logger
 import random
 
 
