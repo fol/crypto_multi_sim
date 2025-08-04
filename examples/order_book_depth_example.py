@@ -4,11 +4,11 @@ Example demonstrating how to use the order book depth checking functionality
 in any trading agent.
 """
 
-from ..agents.trading_agents import MarketMakerAgent, MomentumTraderAgent
-from ..core.exchange import ExchangeAgent
-from ..core.kernel import Kernel
-from ..core.message import Message, MessageBroker
-from ..orderbook.order_book_utils import OrderBookDepthChecker
+from agents.trading_agents import MarketMakerAgent, MomentumTraderAgent
+from core.exchange import ExchangeAgent
+from core.kernel import Kernel
+from core.message import Message, MessageBroker
+from orderbook.order_book_utils import OrderBookDepthChecker
 import time
 
 

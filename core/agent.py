@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Set, Dict, Any
 from .message import Message, MessageBroker
-from ..utils.logger import setup_logger
+from utils.logger import setup_logger
 import logging
 
 

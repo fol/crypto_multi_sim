@@ -1,8 +1,8 @@
 from typing import Dict, List, Tuple
 from .agent import ActiveAgent
 from .message import Message
-from ..orderbook.order_book import OrderBook, Order, Trade, MarketData
-from ..utils.logger import setup_logger
+from orderbook.order_book import OrderBook, Order, Trade, MarketData
+from utils.logger import setup_logger
 
 
 class ExchangeAgent(ActiveAgent):

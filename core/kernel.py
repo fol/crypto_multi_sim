@@ -2,7 +2,7 @@ import heapq
 from typing import Dict, Set, List, Tuple
 from .agent import Agent, ActiveAgent
 from .message import MessageBroker
-from ..utils.logger import setup_logger
+from utils.logger import setup_logger
 
 
 class Kernel:
