@@ -43,34 +43,87 @@ class OrderBook:
         self.order_map: Dict[str, Order] = {}  # order_id -> Order
         self.logger = setup_logger(f"OrderBook.{symbol}")
     
-    def add_limit_order(self, order: Order) -> List[Tuple[str, float, int, str, str]]:
-        """Add a limit order to the book and return any trades generated"""
+    def add_limit_order(self, order: Order, execute_partial_market: bool = False,
+                       min_fill_percent: float = 0.8) -> List[Tuple[str, float, int, str, str]]:
+        """Add a limit order to the book and return any trades generated.
+        
+        Args:
+            order: The limit order to add
+            execute_partial_market: If True, execute part of the order as market when price overlaps
+                                  with existing orderbook levels
+            min_fill_percent: Minimum percentage of order that must be fillable for market-like execution
+            
+        Returns:
+            List of trades generated from the order
+        """
         self.logger.debug(f"Adding limit order {order.order_id}: {order.side} {order.quantity} @ {order.price}")
         
-        # Store order for later lookup
-        self.order_map[order.order_id] = order
+        trades = []
         
-        # Get or create the price level
-        if order.side == "BUY":
-            if order.price not in self.bids:
-                self.bids[order.price] = OrderBookLevel(order.price)
-            level = self.bids[order.price]
-        else:  # SELL
-            if order.price not in self.asks:
-                self.asks[order.price] = OrderBookLevel(order.price)
-            level = self.asks[order.price]
+        # If execute_partial_market is enabled, check if we can execute part of the order as market
+        if execute_partial_market:
+            # Check if there's liquidity at the exact price level
+            liquidity_at_price = 0
+            if order.side == "BUY":
+                # For buy orders, check asks at the same price
+                if order.price in self.asks:
+                    liquidity_at_price = self.asks[order.price].quantity
+            else:  # SELL
+                # For sell orders, check bids at the same price
+                if order.price in self.bids:
+                    liquidity_at_price = self.bids[order.price].quantity
+            
+            # If there's liquidity at this price level, execute part of the order as market
+            if liquidity_at_price > 0:
+                # Create a temporary order with the quantity that can be filled at this price
+                fillable_quantity = min(order.quantity, liquidity_at_price)
+                market_like_order = Order(
+                    order_id=f"{order.order_id}_MARKET_PART",
+                    agent_id=order.agent_id,
+                    symbol=order.symbol,
+                    side=order.side,
+                    price=order.price,  # This will be ignored for matching but used for price reference
+                    quantity=fillable_quantity,
+                    timestamp=order.timestamp
+                )
+                
+                # Execute this portion as a market-like order
+                market_trades = self._match_order(market_like_order)
+                trades.extend(market_trades)
+                
+                # Update the original order quantity
+                order.quantity -= fillable_quantity
+                
+                self.logger.debug(f"Executed {fillable_quantity} units of limit order {order.order_id} as market-like trade")
         
-        # Add order to the level
-        level.orders.append(order)
-        level.quantity += order.quantity
-        
-        # Update best prices
-        self._update_best_prices()
-        
-        # Try to match the order
-        trades = self._match_order(order)
+        # If there's still quantity left, add it as a regular limit order
+        if order.quantity > 0:
+            # Store order for later lookup
+            self.order_map[order.order_id] = order
+            
+            # Get or create the price level
+            if order.side == "BUY":
+                if order.price not in self.bids:
+                    self.bids[order.price] = OrderBookLevel(order.price)
+                level = self.bids[order.price]
+            else:  # SELL
+                if order.price not in self.asks:
+                    self.asks[order.price] = OrderBookLevel(order.price)
+                level = self.asks[order.price]
+            
+            # Add order to the level
+            level.orders.append(order)
+            level.quantity += order.quantity
+            
+            # Update best prices
+            self._update_best_prices()
+            
+            # Try to match the remaining order
+            remaining_trades = self._match_order(order)
+            trades.extend(remaining_trades)
+            
         if trades:
-            self.logger.debug(f"Generated {len(trades)} trades")
+            self.logger.debug(f"Generated {len(trades)} trades for limit order {order.order_id}")
         return trades
     
     def add_market_order(self, order: Order, min_fill_percent: float = 1.0) -> Tuple[bool, List[Tuple[str, float, int, str, str]]]:

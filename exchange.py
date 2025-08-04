@@ -79,8 +79,9 @@ class ExchangeAgent(ActiveAgent):
                 self.logger.info(f"Market order {order.order_id} rejected due to insufficient liquidity")
                 return
         else:
-            # For limit orders, no liquidity check needed
-            trades = self.order_books[symbol].add_limit_order(order)
+            # For limit orders, optionally execute partial market if overlapping with orderbook levels
+            # This is controlled by a flag, defaulting to False to maintain backward compatibility
+            trades = self.order_books[symbol].add_limit_order(order, execute_partial_market=False)
         
         self.logger.info(f"Order added, {len(trades)} trades generated")
         
