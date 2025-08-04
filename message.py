@@ -3,6 +3,7 @@ from typing import Dict, List, Set, Any, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 import uuid
+from logger import setup_logger
 
 
 @dataclass
@@ -51,6 +52,7 @@ class MessageBroker:
         self.message_queue: List[tuple] = []  # (timestamp, message)
         # Agent message handlers
         self.agent_handlers: Dict[str, Callable] = {}
+        self.logger = setup_logger("MessageBroker")
     
     def subscribe(self, agent_id: str, topic_pattern: str):
         """Subscribe an agent to a topic or pattern"""
@@ -76,6 +78,7 @@ class MessageBroker:
     
     def publish(self, message: Message):
         """Publish a message to all subscribed agents"""
+        self.logger.debug(f"Publishing message to topic {message.topic}")
         heapq.heappush(self.message_queue, (message.timestamp, message))
     
     def register_agent_handler(self, agent_id: str, handler: Callable):
@@ -93,6 +96,7 @@ class MessageBroker:
     def deliver_messages(self, timestamp: int):
         """Deliver all messages scheduled for the current timestamp"""
         messages = self.get_messages_for_timestamp(timestamp)
+        self.logger.debug(f"Delivering {len(messages)} messages at timestamp {timestamp}")
         
         # Group messages by recipient for batch delivery
         recipient_messages: Dict[str, List[Message]] = {}
@@ -109,6 +113,7 @@ class MessageBroker:
         # Deliver messages to each recipient
         for recipient_id, msgs in recipient_messages.items():
             if recipient_id in self.agent_handlers:
+                self.logger.debug(f"Delivering {len(msgs)} messages to agent {recipient_id}")
                 for message in msgs:
                     self.agent_handlers[recipient_id](message)
     

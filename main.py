@@ -1,11 +1,16 @@
 from kernel import Kernel
 from exchange import ExchangeAgent
 from trading_agents import MarketMakerAgent, MomentumTraderAgent, MeanReversionTraderAgent
+from logger import setup_logger
 import random
+import logging
 
 
 def main():
     """Main function to run the market simulation"""
+    # Set up logger
+    logger = setup_logger("Main")
+    
     # Create kernel
     kernel = Kernel()
     
@@ -38,20 +43,20 @@ def main():
     kernel.schedule_agent_wakeup("MR_1", 3000)
     
     # Run simulation for 10 seconds (10000 milliseconds)
-    print("Starting market simulation...")
+    logger.info("Starting market simulation...")
     kernel.run(10000)
-    print("Simulation completed.")
+    logger.info("Simulation completed.")
     
     # Print some statistics
-    print(f"Final time: {kernel.get_current_time()} ms")
-    print(f"Total trades: {len(exchange.trade_history)}")
-    print(f"Order book size: {len(exchange.order_books['AAPL'].bids) + len(exchange.order_books['AAPL'].asks)} levels")
+    logger.info(f"Final time: {kernel.get_current_time()} ms")
+    logger.info(f"Total trades: {len(exchange.trade_history)}")
+    logger.info(f"Order book size: {len(exchange.order_books['AAPL'].bids) + len(exchange.order_books['AAPL'].asks)} levels")
     
     if exchange.trade_history:
         last_trades = exchange.trade_history[-5:]  # Last 5 trades
-        print("Last 5 trades:")
+        logger.info("Last 5 trades:")
         for trade in last_trades:
-            print(f"  {trade.trade_id}: {trade.quantity} @ ${trade.price}")
+            logger.info(f"  {trade.trade_id}: {trade.quantity} @ ${trade.price}")
 
 
 if __name__ == "__main__":

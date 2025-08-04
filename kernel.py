@@ -2,6 +2,7 @@ import heapq
 from typing import Dict, Set, List, Tuple
 from agent import Agent, ActiveAgent
 from message import MessageBroker
+from logger import setup_logger
 
 
 class Kernel:
@@ -14,6 +15,7 @@ class Kernel:
         self.message_broker = MessageBroker()
         self.agents: Dict[str, Agent] = {}
         self.agent_wakeups: Dict[int, Set[str]] = {}  # timestamp -> agent_ids
+        self.logger = setup_logger("Kernel")
     
     def register_agent(self, agent: Agent):
         """Register an agent with the kernel"""
@@ -36,6 +38,7 @@ class Kernel:
     
     def run(self, end_time: int):
         """Run simulation until end_time"""
+        self.logger.info(f"Starting simulation run for {end_time}ms")
         self.end_time = end_time
         self.current_time = 0
         
@@ -51,6 +54,7 @@ class Kernel:
                 
                 # Advance time to next event
                 self.current_time = next_timestamp
+                self.logger.debug(f"Processing events at timestamp {self.current_time}")
                 
                 # Process all events at this timestamp
                 self._process_events_at_timestamp(next_timestamp)
@@ -60,6 +64,7 @@ class Kernel:
         
         # Deliver any remaining messages
         self.message_broker.deliver_messages(self.current_time)
+        self.logger.info("Simulation run completed")
     
     def _process_events_at_timestamp(self, timestamp: int):
         """Process all events scheduled for a specific timestamp"""

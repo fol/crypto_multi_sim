@@ -2,6 +2,7 @@ from typing import Dict, List, Tuple
 from agent import ActiveAgent
 from message import Message
 from order_book import OrderBook, Order, Trade, MarketData
+from logger import setup_logger
 
 
 class ExchangeAgent(ActiveAgent):
@@ -13,6 +14,7 @@ class ExchangeAgent(ActiveAgent):
         self.market_data: Dict[str, MarketData] = {}
         self.trade_history: List[Trade] = []
         self.market_data_update_interval = 100  # milliseconds
+        self.logger = setup_logger(f"ExchangeAgent.{agent_id}")
     
     def initialize_symbol(self, symbol: str):
         """Initialize an order book for a symbol"""
@@ -27,6 +29,7 @@ class ExchangeAgent(ActiveAgent):
             # Subscribe to order messages for this symbol
             self.subscribe(f"{symbol}.ORDER")
             self.subscribe(f"{symbol}.CANCEL")
+            self.subscribe(f"{symbol}.MARKET_DEPTH")
             # Schedule regular market data updates
             self.schedule_wakeup(self.market_data_update_interval)
     
@@ -36,6 +39,8 @@ class ExchangeAgent(ActiveAgent):
             self._process_order(message)
         elif message.topic.endswith(".CANCEL"):
             self._process_cancel(message)
+        elif message.topic.endswith(".MARKET_DEPTH"):
+            self._process_market_depth_query(message)
         else:
             # Handle other message types
             pass
@@ -45,9 +50,10 @@ class ExchangeAgent(ActiveAgent):
         payload = message.payload
         symbol = payload.get("symbol")
         
-        print(f"[{message.timestamp}ms] Exchange received order: {payload}")
+        self.logger.info(f"[{message.timestamp}ms] Exchange received order: {payload}")
         
         if symbol not in self.order_books:
+            self.logger.debug(f"Initializing symbol {symbol}")
             self.initialize_symbol(symbol)
         
         # Create order object
@@ -61,10 +67,23 @@ class ExchangeAgent(ActiveAgent):
             timestamp=message.timestamp
         )
         
-        # Add order to book and get any trades
-        trades = self.order_books[symbol].add_order(order)
+        # Determine if it's a market order (price is infinity for buy or 0 for sell)
+        is_market_order = (order.side == "BUY" and order.price == float('inf')) or \
+                           (order.side == "SELL" and order.price == 0.0)
         
-        print(f"  Order added, {len(trades)} trades generated")
+        # Add order to book and get any trades
+        if is_market_order:
+            # For market orders, check liquidity with default 80% fill requirement
+            can_fill, trades = self.order_books[symbol].add_market_order(order, min_fill_percent=0.8)
+            if not can_fill:
+                self.logger.info(f"Market order {order.order_id} rejected due to insufficient liquidity")
+                return
+        else:
+            # For limit orders, optionally execute partial market if overlapping with orderbook levels
+            # This is controlled by a flag, defaulting to False to maintain backward compatibility
+            trades = self.order_books[symbol].add_limit_order(order, execute_partial_market=False)
+        
+        self.logger.info(f"Order added, {len(trades)} trades generated")
         
         # Process trades
         for trade_id, price, quantity, buyer_id, seller_id in trades:
@@ -154,6 +173,64 @@ class ExchangeAgent(ActiveAgent):
                 source_id=self.agent_id
             )
             self.send_message(price_message.topic, price_message.payload, price_message.timestamp)
+    
+    def _process_market_depth_query(self, message: Message):
+        """Process market depth queries from agents"""
+        payload = message.payload
+        symbol = payload.get("symbol")
+        query_type = payload.get("query_type")
+        
+        if symbol not in self.order_books:
+            self.logger.warning(f"Market depth query for unknown symbol: {symbol}")
+            return
+        
+        order_book = self.order_books[symbol]
+        response_topic = f"{symbol}.MARKET_DEPTH_RESPONSE"
+        response_payload = {"query_type": query_type}
+        
+        if query_type == "get_market_depth":
+            side = payload.get("side")
+            depth = payload.get("depth", 5)
+            levels = order_book.get_market_depth(side, depth)
+            response_payload["levels"] = levels
+            
+        elif query_type == "get_total_quantity_at_side":
+            side = payload.get("side")
+            depth = payload.get("depth", None)
+            quantity = order_book.get_total_quantity_at_side(side, depth)
+            response_payload["quantity"] = quantity
+            
+        elif query_type == "get_average_price_for_quantity":
+            side = payload.get("side")
+            quantity = payload.get("quantity")
+            avg_price, slippage_bps, fill_percent = order_book.get_average_price_for_quantity(side, quantity)
+            response_payload["average_price"] = avg_price
+            response_payload["slippage_bps"] = slippage_bps
+            response_payload["fill_percentage"] = fill_percent
+            
+        elif query_type == "can_fill_order":
+            side = payload.get("side")
+            quantity = payload.get("quantity")
+            min_fill_percent = payload.get("min_fill_percent", 1.0)
+            can_fill, actual_fill_percent = order_book.can_fill_order(side, quantity, min_fill_percent)
+            response_payload["can_fill"] = can_fill
+            response_payload["actual_fill_percentage"] = actual_fill_percent
+            
+        elif query_type == "get_liquidity_score":
+            reference_quantity = payload.get("reference_quantity", 100)
+            score = order_book.get_liquidity_score(reference_quantity)
+            response_payload["liquidity_score"] = score
+            
+        elif query_type == "get_spread":
+            spread = order_book.get_spread()
+            response_payload["spread"] = spread
+            
+        elif query_type == "get_imbalance":
+            imbalance = order_book.get_imbalance()
+            response_payload["imbalance"] = imbalance
+        
+        # Send the response back to the querying agent
+        self.send_message(response_topic, response_payload, message.timestamp)
     
     def wakeup(self, current_time: int):
         """Called by kernel at scheduled intervals"""
