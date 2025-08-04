@@ -43,9 +43,9 @@ class OrderBook:
         self.order_map: Dict[str, Order] = {}  # order_id -> Order
         self.logger = setup_logger(f"OrderBook.{symbol}")
     
-    def add_order(self, order: Order) -> List[Tuple[str, float, int, str, str]]:
-        """Add an order to the book and return any trades generated"""
-        self.logger.debug(f"Adding order {order.order_id}: {order.side} {order.quantity} @ {order.price}")
+    def add_limit_order(self, order: Order) -> List[Tuple[str, float, int, str, str]]:
+        """Add a limit order to the book and return any trades generated"""
+        self.logger.debug(f"Adding limit order {order.order_id}: {order.side} {order.quantity} @ {order.price}")
         
         # Store order for later lookup
         self.order_map[order.order_id] = order
@@ -72,6 +72,27 @@ class OrderBook:
         if trades:
             self.logger.debug(f"Generated {len(trades)} trades")
         return trades
+    
+    def add_market_order(self, order: Order, min_fill_percent: float = 1.0) -> Tuple[bool, List[Tuple[str, float, int, str, str]]]:
+        """Add a market order to the book after checking liquidity and return (can_fill, trades)"""
+        self.logger.debug(f"Adding market order {order.order_id}: {order.side} {order.quantity}")
+        
+        # Check if we can fill the order with sufficient liquidity
+        can_fill, actual_fill_percent = self.can_fill_order(order.side, order.quantity, min_fill_percent)
+        
+        if not can_fill:
+            self.logger.debug(f"Market order {order.order_id} rejected due to insufficient liquidity "
+                               f"(fill percent: {actual_fill_percent:.2%}, min required: {min_fill_percent:.2%})")
+            return False, []
+        
+        # Store order for later lookup
+        self.order_map[order.order_id] = order
+        
+        # Try to match the order
+        trades = self._match_order(order)
+        if trades:
+            self.logger.debug(f"Generated {len(trades)} trades for market order")
+        return True, trades
     
     def cancel_order(self, order_id: str) -> bool:
         """Cancel an order by ID"""
@@ -112,16 +133,22 @@ class OrderBook:
         
         if order.side == "BUY":
             # Match against asks (lowest prices first)
-            while (order.quantity > 0 and self.asks and 
-                   self.asks.peekitem(0)[0] <= order.price):
+            # For market orders, match against all available liquidity
+            # For limit orders, match only up to the specified price
+            price_condition = lambda ask_price: True if order.price == float('inf') else ask_price <= order.price
+            while (order.quantity > 0 and self.asks and
+                   price_condition(self.asks.peekitem(0)[0])):
                 ask_price, ask_level = self.asks.peekitem(0)
                 trades.extend(self._execute_match(order, ask_level))
                 if ask_level.quantity <= 0:
                     del self.asks[ask_price]
         else:  # SELL
             # Match against bids (highest prices first)
-            while (order.quantity > 0 and self.bids and 
-                   self.bids.peekitem(0)[0] >= order.price):
+            # For market orders, match against all available liquidity
+            # For limit orders, match only up to the specified price
+            price_condition = lambda bid_price: True if order.price == 0.0 else bid_price >= order.price
+            while (order.quantity > 0 and self.bids and
+                   price_condition(self.bids.peekitem(0)[0])):
                 bid_price, bid_level = self.bids.peekitem(0)
                 trades.extend(self._execute_match(order, bid_level))
                 if bid_level.quantity <= 0:
@@ -197,6 +224,132 @@ class OrderBook:
             "best_bid": self.best_bid,
             "best_ask": self.best_ask
         }
+    
+    def get_market_depth(self, side: str, depth: int = 5) -> List[Tuple[float, int]]:
+        """
+        Get market depth for a specific side up to a certain depth
+        Returns list of (price, quantity) tuples
+        """
+        levels = []
+        
+        if side == "BUY":
+            # For buy orders, get asks (what we can buy at)
+            for i, (price, level) in enumerate(self.asks.items()):
+                if i >= depth:
+                    break
+                levels.append((price, level.quantity))
+        else:  # SELL
+            # For sell orders, get bids (what we can sell at)
+            for i, (price, level) in enumerate(self.bids.items()):
+                if i >= depth:
+                    break
+                levels.append((price, level.quantity))
+        
+        return levels
+    
+    def get_total_quantity_at_side(self, side: str, depth: int = None) -> int:
+        """
+        Get total quantity available at a specific side
+        If depth is None, checks all levels
+        """
+        total_quantity = 0
+        
+        if side == "BUY":
+            # For buy orders, sum asks
+            levels = list(self.asks.items())
+            if depth is not None:
+                levels = levels[:depth]
+            for price, level in levels:
+                total_quantity += level.quantity
+        else:  # SELL
+            # For sell orders, sum bids
+            levels = list(self.bids.items())
+            if depth is not None:
+                levels = levels[:depth]
+            for price, level in levels:
+                total_quantity += level.quantity
+        
+        return total_quantity
+    
+    def get_average_price_for_quantity(self, side: str, quantity: int) -> Tuple[float, float, float]:
+        """
+        Calculate the average price, slippage, and fill percentage for a given quantity
+        Returns: (average_price, slippage_bps, fill_percentage)
+        """
+        levels = self.get_market_depth(side)
+        
+        if not levels:
+            return 0.0, 0.0, 0.0
+        
+        total_cost = 0.0
+        filled_quantity = 0
+        reference_price = levels[0][0]  # Use best price as reference
+        
+        for price, available_quantity in levels:
+            if filled_quantity >= quantity:
+                break
+            
+            quantity_at_level = min(available_quantity, quantity - filled_quantity)
+            total_cost += price * quantity_at_level
+            filled_quantity += quantity_at_level
+        
+        if filled_quantity == 0:
+            return 0.0, 0.0, 0.0
+        
+        average_price = total_cost / filled_quantity
+        fill_percentage = filled_quantity / quantity
+        
+        # Calculate slippage in basis points (1/100th of a percent)
+        if side == "BUY":
+            slippage_bps = ((average_price - reference_price) / reference_price) * 10000
+        else:  # SELL
+            slippage_bps = ((reference_price - average_price) / reference_price) * 10000
+        
+        return average_price, slippage_bps, fill_percentage
+    
+    def can_fill_order(self, side: str, quantity: int, min_fill_percent: float = 1.0) -> Tuple[bool, float]:
+        """
+        Check if an order can be filled with at least min_fill_percent
+        Returns: (can_fill, actual_fill_percentage)
+        """
+        _, _, fill_percentage = self.get_average_price_for_quantity(side, quantity)
+        can_fill = fill_percentage >= min_fill_percent
+        return can_fill, fill_percentage
+    
+    def get_liquidity_score(self, reference_quantity: int = 100) -> float:
+        """
+        Calculate a liquidity score based on order book depth
+        Returns a score between 0 (no liquidity) and 1 (high liquidity)
+        """
+        bid_quantity = self.get_total_quantity_at_side("SELL")
+        ask_quantity = self.get_total_quantity_at_side("BUY")
+        
+        # Normalize by reference quantity
+        bid_score = min(bid_quantity / reference_quantity, 1.0)
+        ask_score = min(ask_quantity / reference_quantity, 1.0)
+        
+        # Return the average of bid and ask scores
+        return (bid_score + ask_score) / 2
+    
+    def get_spread(self) -> float:
+        """Get the current bid-ask spread"""
+        if self.best_ask == float('inf') or self.best_bid == 0.0:
+            return float('inf')
+        return self.best_ask - self.best_bid
+    
+    def get_imbalance(self) -> float:
+        """
+        Calculate order book imbalance
+        Positive values indicate more buy pressure
+        Negative values indicate more sell pressure
+        """
+        bid_quantity = self.get_total_quantity_at_side("SELL")
+        ask_quantity = self.get_total_quantity_at_side("BUY")
+        
+        if bid_quantity + ask_quantity == 0:
+            return 0.0
+        
+        return (bid_quantity - ask_quantity) / (bid_quantity + ask_quantity)
 
 
 @dataclass
