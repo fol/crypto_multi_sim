@@ -2,10 +2,14 @@ import logging
 import os
 import sys
 from typing import Optional
+import pathlib
 
 # Create a custom formatter
 class ColoredFormatter(logging.Formatter):
     """Custom formatter to add colors to log levels"""
+    
+    # Row counter
+    row_counter = 0
     
     # ANSI color codes
     COLORS = {
@@ -18,14 +22,29 @@ class ColoredFormatter(logging.Formatter):
     }
     
     def format(self, record):
+        # Make path relative to project root
+        if hasattr(record, 'pathname') and record.pathname:
+            try:
+                # Get the project root directory
+                project_root = pathlib.Path(__file__).parent.parent
+                # Make the path relative
+                relative_path = pathlib.Path(record.pathname).relative_to(project_root)
+                record.pathname = str(relative_path)
+            except ValueError:
+                # If we can't make it relative, keep the original path
+                pass
+        
         # Add color to the level name
         levelname = record.levelname
         if levelname in self.COLORS:
             record.levelname = f"{self.COLORS[levelname]}{levelname}{self.COLORS['RESET']}"
         
-        # Add color to the message
+        # Add color to the entire message including filename and line number
         if levelname in self.COLORS:
-            record.msg = f"{self.COLORS[levelname]}{record.msg}{self.COLORS['RESET']}"
+            # Colorize the entire log message
+            original_message = super().format(record)
+            colored_message = f"{self.COLORS[levelname]}{original_message}{self.COLORS['RESET']}"
+            return colored_message
         
         return super().format(record)
 
@@ -64,7 +83,7 @@ def setup_logger(name: str, level: Optional[int] = None) -> logging.Logger:
     
     # Create formatter
     formatter = ColoredFormatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        '%(asctime)s - %(name)s - %(levelname)s - %(pathname)s:%(lineno)d - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
     console_handler.setFormatter(formatter)
