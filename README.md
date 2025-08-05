@@ -39,7 +39,7 @@ Efficient limit order book implementation with price-time priority matching algo
 Run the simulation with:
 
 ```bash
-python examples/main.py
+python -m examples.main
 ```
 
 This will run a sample simulation with AAPL symbol and multiple trading agents for 10 seconds.
@@ -47,7 +47,7 @@ This will run a sample simulation with AAPL symbol and multiple trading agents f
 To run the order book depth example:
 
 ```bash
-python examples/order_book_depth_example.py
+python -m examples.order_book_depth_example
 ```
 
 This will run a simulation demonstrating order book depth checking functionality.
@@ -65,7 +65,10 @@ This will run a simulation demonstrating order book depth checking functionality
 - `orderbook/order_book_utils.py`: Utility functions for order book operations
 
 ### Agents
-- `agents/trading_agents.py`: Various trading strategy implementations
+- `agents/market_maker_agent.py`: Market maker agent implementation
+- `agents/momentum_trader_agent.py`: Momentum trader agent implementation
+- `agents/mean_reversion_trader_agent.py`: Mean reversion trader agent implementation
+- `agents/liquidity_provider_agent.py`: Liquidity provider agent implementation
 
 ### Examples
 - `examples/main.py`: Sample simulation setup and execution

@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import Mock, patch
-from agents.trading_agents import LiquidityProviderAgent
+from agents import LiquidityProviderAgent
 from core.message import Message
 from core.agent import ActiveAgent
 
